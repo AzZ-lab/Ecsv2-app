@@ -5,9 +5,16 @@ terraform {
       version = "~> 6.0"
     }
   }
+
+  backend "s3" {
+    bucket = "ecsv2-bucket"
+    key    = "ecsv2-bucket/terraform.tfstate"
+    region = "eu-west-2"
+    encrypt = true
+    use_lockfile = true
+  }
 }
 
-# Configure the AWS Provider
 provider "aws" {
-  region = "us-east-1"
+  region = "eu-west-2"
 }
