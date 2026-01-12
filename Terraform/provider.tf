@@ -7,10 +7,10 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "ecsv2-bucket"
-    key    = "ecsv2-bucket/terraform.tfstate"
-    region = "eu-west-2"
-    encrypt = true
+    bucket       = "ecsv2-bucket"
+    key          = "ecsv2-bucket/terraform.tfstate"
+    region       = "eu-west-2"
+    encrypt      = true
     use_lockfile = true
   }
 }
