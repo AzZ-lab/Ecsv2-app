@@ -21,10 +21,6 @@ variable "container_port" {
   description = "Port your container listens on (e.g. 8000)"
 }
 
-variable "dynamodb_table_name" {
-  type        = string
-  description = "DynamoDB table name used by the app"
-}
 
 variable "execution_role_arn" {
   type        = string
@@ -49,4 +45,36 @@ variable "task_memory" {
 variable "log_retention_days" {
   type    = number
   default = 7
+}
+
+variable "dynamodb_table_name" {
+  type        = string
+  description = "ARN of the DynamoDB table used by the app"
+}
+
+variable "desired_count" {
+  type        = number
+  default     = 1
+  description = "How many tasks to run"
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "Private subnets for ECS tasks"
+}
+
+variable "ecs_tasks_security_group_id" {
+  type        = string
+  description = "Security group for ECS tasks (allows inbound from ALB only)"
+}
+
+variable "target_group_blue_arn" {
+  type        = string
+  description = "ALB blue target group ARN"
+}
+
+variable "container_name" {
+  type        = string
+  default     = "app"
+  description = "Must match the container name in the ECS task definition"
 }

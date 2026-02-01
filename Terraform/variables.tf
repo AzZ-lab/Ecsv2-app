@@ -23,3 +23,8 @@ variable "environment" {
   description = "The deployment environment (e.g. dev, staging, prod)"
   type        = string
 }
+
+variable "health_check_path" {
+  type    = string
+  default = "/health"
+}

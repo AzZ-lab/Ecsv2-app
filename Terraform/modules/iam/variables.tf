@@ -1,7 +1,7 @@
 variable "github_repo" {
   description = "The GitHub repository in the format 'owner/repo'"
   type        = string
-  default = "AzZ-lab/Ecsv2-app"
+  default     = "AzZ-lab/Ecsv2-app"
 }
 
 variable "project_name" {
@@ -20,5 +20,5 @@ variable "environment" {
 variable "dynamodb_table_arn" {
   type        = string
   description = "ARN of the DynamoDB table used by the ECS task"
-  default = "arn:aws:dynamodb:eu-west-2:663931958925:table/ecsv2-table"
+  default     = "arn:aws:dynamodb:eu-west-2:663931958925:table/ecsv2-table"
 }

@@ -1,4 +1,4 @@
-resource "aws_ecs_cluster" "ecs_cluster" {
+resource "aws_ecs_cluster" "ecs" {
   name = "${var.project_name}-${var.environment}-cluster"
 
   setting {
@@ -35,12 +35,12 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = "app"
-      image     = var.image_uri          # <-- FILL THIS (ECR image URI)
+      image     = var.image_uri
       essential = true
 
       portMappings = [
         {
-          containerPort = var.container_port  # <-- FILL THIS (e.g. 8000)
+          containerPort = var.container_port
           hostPort      = var.container_port
           protocol      = "tcp"
         }
@@ -49,7 +49,7 @@ resource "aws_ecs_task_definition" "app" {
       environment = [
         {
           name  = "DYNAMODB_TABLE_NAME"
-          value = var.dynamodb_table_name     # <-- FILL THIS (table name)
+          value = var.dynamodb_table_name
         }
       ]
 
@@ -57,12 +57,54 @@ resource "aws_ecs_task_definition" "app" {
         logDriver = "awslogs"
         options = {
           awslogs-group         = aws_cloudwatch_log_group.app.name
-          awslogs-region        = var.aws_region  # <-- FILL THIS (region)
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
         }
       }
     }
   ])
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+
+resource "aws_ecs_service" "app" {
+  name            = "${var.project_name}-${var.environment}-service"
+  cluster         = aws_ecs_cluster.ecs.id
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = var.desired_count
+  launch_type     = "FARGATE"
+
+
+  deployment_controller {
+    type = "CODE_DEPLOY"
+  }
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.ecs_tasks_security_group_id]
+    assign_public_ip = false
+  }
+
+
+  load_balancer {
+    target_group_arn = var.target_group_blue_arn
+    container_name   = var.container_name
+    container_port   = var.container_port
+  }
+
+
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+      desired_count,
+      load_balancer,
+    ]
+  }
+
 
   tags = {
     Project     = var.project_name

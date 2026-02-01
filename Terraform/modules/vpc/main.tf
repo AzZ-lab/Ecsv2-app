@@ -3,8 +3,8 @@ data "aws_availability_zones" "available" {
 }
 
 resource "aws_vpc" "main" {
-  cidr_block       = var.aws_vpc
-  instance_tenancy = "default"
+  cidr_block           = var.aws_vpc
+  instance_tenancy     = "default"
   enable_dns_hostnames = true
   enable_dns_support   = true
 
@@ -14,9 +14,9 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "private" {
-  count = 2
-  vpc_id     = aws_vpc.main.id
-  cidr_block = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
@@ -33,9 +33,9 @@ resource "aws_internet_gateway" "gw" {
 }
 
 resource "aws_subnet" "public" {
-  count = 2
-  vpc_id = aws_vpc.main.id
-  cidr_block = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 1)
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
