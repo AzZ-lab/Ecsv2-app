@@ -22,7 +22,7 @@ module "ecs" {
   aws_region          = var.aws_region
   image_uri           = var.image_uri
   container_port      = var.container_port
-  dynamodb_table_name = var.dynamodb_table_name
+  table_name          = var.TABLE_NAME
 
   execution_role_arn = module.iam.ecs_execution_role_arn
   task_role_arn      = module.iam.ecs_task_role_arn
@@ -47,5 +47,45 @@ module "alb" {
   container_port    = var.container_port
   health_check_path = var.health_check_path
   alb_ingress_cidrs = ["0.0.0.0/0"]
-  enable_https      = false
+  enable_https      = true
+
+  certificate_arn = module.route53.certificate_arn
+}
+
+module "route53" {
+  source = "./modules/route53"
+
+  project_name = var.project_name
+  environment  = var.environment
+  domain_name  = var.domain_name
+
+  alb_dns_name = module.alb.alb_dns_name
+  alb_zone_id  = module.alb.alb_zone_id
+}
+
+module "waf" {
+  source = "./modules/waf"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  alb_arn = module.alb.alb_arn
+}
+
+
+module "codedeploy" {
+  source = "./modules/codedeploy"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  ecs_cluster_name = module.ecs.cluster_name
+  ecs_service_name = module.ecs.service_name
+
+  deployment_config_name      = var.deployment_config_name
+  termination_wait_minutes    = var.termination_wait_minutes
+
+  alb_listener_arn            = module.alb.https_listener_arn
+  target_group_blue_name      = module.alb.target_group_blue_name
+  target_group_green_name     = module.alb.target_group_green_name
 }

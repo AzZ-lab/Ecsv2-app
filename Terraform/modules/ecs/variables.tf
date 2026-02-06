@@ -47,7 +47,7 @@ variable "log_retention_days" {
   default = 7
 }
 
-variable "dynamodb_table_name" {
+variable "table_name" {
   type        = string
   description = "ARN of the DynamoDB table used by the app"
 }

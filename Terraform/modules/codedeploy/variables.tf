@@ -36,15 +36,12 @@ variable "target_group_green_name" {
 }
 
 
-
 variable "deployment_config_name" {
   type        = string
-  default     = "CodeDeployDefault.ECSAllAtOnce"
   description = "CodeDeploy deployment strategy (AllAtOnce, Canary, Linear)"
 }
 
 variable "termination_wait_minutes" {
   type        = number
-  default     = 5
   description = "Minutes to wait before terminating BLUE tasks after success"
 }

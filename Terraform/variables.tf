@@ -10,7 +10,7 @@ variable "container_port" {
   description = "Port your container listens on (e.g. 8000)"
   type        = number
 }
-variable "dynamodb_table_name" {
+variable "TABLE_NAME" {
   description = "DynamoDB table name used by the app"
   type        = string
 }
@@ -27,4 +27,18 @@ variable "environment" {
 variable "health_check_path" {
   type    = string
   default = "/health"
+}
+
+variable "domain_name" {
+  type = string
+}
+
+variable "deployment_config_name" {
+  type        = string
+  description = "CodeDeploy deployment strategy (AllAtOnce, Canary, Linear)"
+}
+
+variable "termination_wait_minutes" {
+  type        = number
+  description = "Minutes to wait before terminating BLUE tasks after success"
 }

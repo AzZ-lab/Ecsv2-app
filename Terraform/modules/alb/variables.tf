@@ -22,7 +22,7 @@ variable "container_port" {
 
 variable "health_check_path" {
   type        = string
-  default     = "/health"
+  default     = "/"
   description = "Health check endpoint path on your app"
 }
 
@@ -35,4 +35,10 @@ variable "alb_ingress_cidrs" {
 variable "enable_https" {
   type    = bool
   default = false
+}
+
+variable "certificate_arn" {
+  type        = string
+  description = "ACM certificate ARN for HTTPS listener"
+  default     = null
 }

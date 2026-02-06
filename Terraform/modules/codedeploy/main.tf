@@ -28,8 +28,9 @@ resource "aws_iam_role" "codedeploy" {
 
 resource "aws_iam_role_policy_attachment" "codedeploy_managed" {
   role       = aws_iam_role.codedeploy.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForECS"
+  policy_arn = "arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS"
 }
+
 
 
 resource "aws_codedeploy_deployment_group" "ecs" {
@@ -43,6 +44,11 @@ resource "aws_codedeploy_deployment_group" "ecs" {
   auto_rollback_configuration {
     enabled = true
     events  = ["DEPLOYMENT_FAILURE", "DEPLOYMENT_STOP_ON_ALARM", "DEPLOYMENT_STOP_ON_REQUEST"]
+  }
+
+  deployment_style {
+  deployment_type   = "BLUE_GREEN"
+  deployment_option = "WITH_TRAFFIC_CONTROL"
   }
 
 
