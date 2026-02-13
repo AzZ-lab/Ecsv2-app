@@ -23,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ---- Tests (Python) ----
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,10 +39,11 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
           TABLE_NAME: test-table
-          # Make imports work whether main.py is at repo root OR inside app/
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/app
+          # Your code is under app/src, so make "src.*" importable
+          PYTHONPATH: ${{ github.workspace }}/app
         run: |
           pytest -q app/tests
+
 
       - name: Build container (no cache)
         run: |
@@ -56,7 +58,7 @@ jobs:
           output: ${{ github.workspace }}/trivy-results.sarif
           vuln-type: os,library
           severity: CRITICAL,HIGH
-          exit-code: "0"   # set to "1" if you want the pipeline to fail on findings
+          exit-code: "0"
 
       - name: "Debug: confirm SARIF exists"
         if: always()
@@ -73,6 +75,7 @@ jobs:
         if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: trivy-results.sarif
+
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
