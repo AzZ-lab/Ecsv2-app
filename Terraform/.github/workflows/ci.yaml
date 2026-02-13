@@ -1,0 +1,94 @@
+name: Build, Test, Scan, Push (ECR)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+
+env:
+  AWS_REGION: eu-west-2
+  ECR_REPOSITORY: ecsv2
+  CONTAINER_NAME: app
+
+jobs:
+  build-test-scan-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test deps
+        run: |
+          pip install -r app/requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Unit tests
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          TABLE_NAME: test-table
+        run: |
+          cd app
+          PYTHONPATH=. pytest -q
+
+      - name: Build container (no cache)
+        run: |
+          docker build --pull --no-cache -t $ECR_REPOSITORY:latest ./app
+
+      - name: Trivy scan -> SARIF
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.ECR_REPOSITORY }}:latest
+          format: sarif
+          output: trivy-results.sarif
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          # If you want the pipeline to FAIL on CRITICAL/HIGH, add:
+          # exit-code: "1"
+
+      - name: Upload scan to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Use a secret to keep the workflow reusable across accounts/environments
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure ECR repository exists (eu-west-2)
+        env:
+          REPO: ${{ env.ECR_REPOSITORY }}
+          REGION: ${{ env.AWS_REGION }}
+        run: |
+          if ! aws ecr describe-repositories --repository-names "$REPO" --region "$REGION" >/dev/null 2>&1; then
+            aws ecr create-repository --repository-name "$REPO" --region "$REGION" >/dev/null
+          fi
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push image to ECR (:sha and :latest)
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
