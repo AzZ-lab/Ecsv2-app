@@ -49,24 +49,32 @@ jobs:
       - name: Trivy scan -> SARIF
         uses: aquasecurity/trivy-action@0.28.0
         with:
+          scan-type: image
           image-ref: ${{ env.ECR_REPOSITORY }}:latest
           format: sarif
-          output: trivy-results.sarif
+          output: ${{ github.workspace }}/trivy-results.sarif
           vuln-type: os,library
           severity: CRITICAL,HIGH
-          # If you want the pipeline to FAIL on CRITICAL/HIGH, add:
-          # exit-code: "1"
+          exit-code: "0"   # set to "1" if you want the pipeline to fail on findings
+
+      - name: Debug: confirm SARIF exists
+        if: always()
+        run: |
+          echo "Workspace:"
+          ls -la
+          echo "GitHub workspace:"
+          ls -la "${{ github.workspace }}"
+          test -f "${{ github.workspace }}/trivy-results.sarif" && echo "SARIF OK"
 
       - name: Upload scan to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: trivy-results.sarif
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # Use a secret to keep the workflow reusable across accounts/environments
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
