@@ -4,7 +4,7 @@ data "aws_iam_openid_connect_provider" "github" {
 
 data "aws_iam_policy_document" "github_assume_role" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {

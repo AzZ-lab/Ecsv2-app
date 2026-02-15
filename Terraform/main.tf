@@ -19,10 +19,10 @@ module "ecs" {
   project_name = var.project_name
   environment  = var.environment
 
-  aws_region          = var.aws_region
-  image_uri           = var.image_uri
-  container_port      = var.container_port
-  table_name          = var.TABLE_NAME
+  aws_region     = var.aws_region
+  image_uri      = var.image_uri
+  container_port = var.container_port
+  table_name     = var.TABLE_NAME
 
   execution_role_arn = module.iam.ecs_execution_role_arn
   task_role_arn      = module.iam.ecs_task_role_arn
@@ -82,10 +82,10 @@ module "codedeploy" {
   ecs_cluster_name = module.ecs.cluster_name
   ecs_service_name = module.ecs.service_name
 
-  deployment_config_name      = var.deployment_config_name
-  termination_wait_minutes    = var.termination_wait_minutes
+  deployment_config_name   = var.deployment_config_name
+  termination_wait_minutes = var.termination_wait_minutes
 
-  alb_listener_arn            = module.alb.https_listener_arn
-  target_group_blue_name      = module.alb.target_group_blue_name
-  target_group_green_name     = module.alb.target_group_green_name
+  alb_listener_arn        = module.alb.https_listener_arn
+  target_group_blue_name  = module.alb.target_group_blue_name
+  target_group_green_name = module.alb.target_group_green_name
 }

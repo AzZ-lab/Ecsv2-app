@@ -47,8 +47,8 @@ resource "aws_codedeploy_deployment_group" "ecs" {
   }
 
   deployment_style {
-  deployment_type   = "BLUE_GREEN"
-  deployment_option = "WITH_TRAFFIC_CONTROL"
+    deployment_type   = "BLUE_GREEN"
+    deployment_option = "WITH_TRAFFIC_CONTROL"
   }
 
 
