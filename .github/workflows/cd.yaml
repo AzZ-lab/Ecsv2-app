@@ -60,6 +60,15 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
+      - name: "Debug: show terraform backend config"
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "---- provider.tf ----"
+          sed -n '1,200p' provider.tf || true
+          echo "---- main.tf ----"
+          sed -n '1,200p' main.tf || true
+
+
       - name: Terraform validate
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
