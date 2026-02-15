@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---- Tests (Python) ----
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -39,7 +39,6 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
           TABLE_NAME: test-table
-          # Your code is under app/src, so make "src.*" importable
           PYTHONPATH: ${{ github.workspace }}/app
         run: |
           pytest -q app/tests
