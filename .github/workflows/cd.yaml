@@ -56,10 +56,6 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform fmt -check -recursive
 
-      - name: Terraform init (backend is in code, uses lockfile)
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform init -input=false
-
       - name: "Debug: show terraform backend config"
         working-directory: ${{ env.TF_DIR }}
         run: |
@@ -68,6 +64,10 @@ jobs:
           echo "---- main.tf ----"
           sed -n '1,200p' main.tf || true
 
+
+      - name: Terraform init (backend is in code, uses lockfile)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
 
       - name: Terraform validate
         working-directory: ${{ env.TF_DIR }}
