@@ -11,10 +11,6 @@ variable "aws_region" {
   description = "AWS region for CloudWatch logs (e.g. eu-west-2)"
 }
 
-variable "image_uri" {
-  type        = string
-  description = "Full ECR image URI including tag (e.g. 123...amazonaws.com/repo:tag)"
-}
 
 variable "container_port" {
   type        = number
@@ -77,4 +73,10 @@ variable "container_name" {
   type        = string
   default     = "app"
   description = "Must match the container name in the ECS task definition"
+}
+
+variable "image_uri" {
+  type        = string
+  description = "Full ECR image URI including tag (e.g. 123...amazonaws.com/repo:tag)"
+  default = "public.ecr.aws/nginx/nginx:stable"
 }

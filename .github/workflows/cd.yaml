@@ -2,7 +2,7 @@ name: CD
 
 on:
   workflow_run:
-    workflows: ["Build, Test, Scan, Push (ECR)"] # matches CI workflow "name:"
+    workflows: ["Build, Test, Scan, Push (ECR)"]
     types: [completed]
     branches: [main]
 
@@ -28,17 +28,10 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     steps:
-      - name: Checkout code (same commit CI built)
+      - name: Checkout (same commit CI built)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Validate AWS_ROLE_ARN secret
-        run: |
-          if [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then
-            echo "::error::AWS_ROLE_ARN secret is not set!"
-            exit 1
-          fi
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -52,12 +45,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - name: Terraform fmt (check)
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform fmt -check -recursive
-
-
-      - name: Terraform init (backend is in code, uses lockfile)
+      - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
@@ -65,18 +53,18 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
-      - name: Terraform apply
+      - name: Terraform apply (infra only; CodeDeploy owns deployments)
         working-directory: ${{ env.TF_DIR }}
         run: terraform apply -auto-approve -input=false
 
 
-  codedeploy-deploy:
+  codedeploy-bluegreen:
     runs-on: ubuntu-latest
     needs: terraform-apply
     if: ${{ needs.terraform-apply.result == 'success' }}
 
     steps:
-      - name: Checkout code (same commit CI built)
+      - name: Checkout (same commit CI built)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -93,7 +81,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - name: Terraform init (backend is in code, uses lockfile)
+      - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
@@ -102,154 +90,128 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y jq
 
-      - name: Get infrastructure outputs
-        id: get-outputs
+      - name: Read Terraform outputs (deployment + ECR)
+        id: tfout
         working-directory: ${{ env.TF_DIR }}
         run: |
           CD_APP=$(terraform output -raw codedeploy_app_name)
           CD_GROUP=$(terraform output -raw codedeploy_deployment_group_name)
-          CLUSTER_NAME=$(terraform output -raw ecs_cluster_name)
-          SERVICE_NAME=$(terraform output -raw ecs_service_name)
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          SERVICE=$(terraform output -raw ecs_service_name)
           ECR_URL=$(terraform output -raw ecr_repository_url)
 
-          # Optional outputs (if you have them)
-          CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null || echo "")
-          CONTAINER_PORT=$(terraform output -raw container_port 2>/dev/null || echo "")
+          # Strongly recommended you add these outputs in Terraform:
+          # output "container_name" { value = "app" }
+          # output "container_port" { value = 8080 }
+          CNAME=$(terraform output -raw container_name 2>/dev/null || echo "app")
+          CPORT=$(terraform output -raw container_port 2>/dev/null || echo "8080")
 
           echo "cd_app=$CD_APP" >> $GITHUB_OUTPUT
           echo "cd_group=$CD_GROUP" >> $GITHUB_OUTPUT
-          echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
-          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
           echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
-          echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
-          echo "container_port=$CONTAINER_PORT" >> $GITHUB_OUTPUT
+          echo "cname=$CNAME" >> $GITHUB_OUTPUT
+          echo "cport=$CPORT" >> $GITHUB_OUTPUT
 
-      - name: Determine commit SHA from CI run
-        id: sha
+      - name: Compute new image URI (tag = CI commit SHA)
+        id: img
         run: |
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
-          if [ -z "$COMMIT_SHA" ]; then
-            echo "::error::Cannot determine commit SHA from workflow_run."
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "$SHA" ]; then
+            echo "::error::Missing workflow_run.head_sha"
             exit 1
           fi
-          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "image=${{ steps.tfout.outputs.ecr_url }}:$SHA" >> $GITHUB_OUTPUT
 
-      - name: Verify ECR image exists (tag = CI commit SHA)
-        id: verify-image
+      - name: Verify image exists in ECR
         run: |
-          NEW_IMAGE="${{ steps.get-outputs.outputs.ecr_url }}:${{ steps.sha.outputs.sha }}"
-          IMAGE_REPO=$(echo "$NEW_IMAGE" | cut -d: -f1 | sed 's|.*/||')
-          IMAGE_TAG=$(echo "$NEW_IMAGE" | cut -d: -f2)
+          IMAGE="${{ steps.img.outputs.image }}"
+          REPO=$(echo "$IMAGE" | cut -d: -f1 | sed 's|.*/||')
+          TAG=$(echo "$IMAGE" | cut -d: -f2)
+          aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$TAG" >/dev/null
 
-          aws ecr describe-images \
-            --repository-name "$IMAGE_REPO" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --query 'imageDetails[0].imageTags' \
-            --output json >/dev/null
-
-          echo "image_uri=$NEW_IMAGE" >> $GITHUB_OUTPUT
-
-      - name: Get current task definition and replace image (by container name if available)
+      - name: Fetch current task definition & replace image (by container name)
         id: taskdef
         run: |
-          CLUSTER="${{ steps.get-outputs.outputs.cluster_name }}"
-          SERVICE="${{ steps.get-outputs.outputs.service_name }}"
-          NEW_IMAGE="${{ steps.verify-image.outputs.image_uri }}"
-          CNAME="${{ steps.get-outputs.outputs.container_name }}"
+          CLUSTER="${{ steps.tfout.outputs.cluster }}"
+          SERVICE="${{ steps.tfout.outputs.service }}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          CNAME="${{ steps.tfout.outputs.cname }}"
 
-          TASK_DEF_ARN=$(aws ecs describe-services \
+          CUR_TD=$(aws ecs describe-services \
             --cluster "$CLUSTER" \
             --services "$SERVICE" \
             --query 'services[0].taskDefinition' \
             --output text)
 
           aws ecs describe-task-definition \
-            --task-definition "$TASK_DEF_ARN" \
+            --task-definition "$CUR_TD" \
             --query 'taskDefinition' \
-            --output json > task-def-full.json
+            --output json > taskdef-full.json
 
-          if [ -n "$CNAME" ]; then
-            jq --arg IMAGE "$NEW_IMAGE" --arg CNAME "$CNAME" '
-              .containerDefinitions |= (map(if .name == $CNAME then .image = $IMAGE else . end))
-              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-            ' task-def-full.json > task-definition.json
-          else
-            jq --arg IMAGE "$NEW_IMAGE" '
-              .containerDefinitions[0].image = $IMAGE
-              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-            ' task-def-full.json > task-definition.json
-          fi
+          jq --arg IMAGE "$IMAGE" --arg CNAME "$CNAME" '
+            .containerDefinitions |= (map(if .name == $CNAME then .image = $IMAGE else . end))
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          ' taskdef-full.json > taskdef-new.json
 
       - name: Register new task definition
-        id: register-task-def
+        id: register
         run: |
-          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-definition.json \
+          NEW_TD=$(aws ecs register-task-definition \
+            --cli-input-json file://taskdef-new.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
-          echo "new_task_def_arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "new_td=$NEW_TD" >> $GITHUB_OUTPUT
 
-      - name: Prepare AppSpec file (YAML)
-        env:
-          NEW_TASK_DEF_ARN: ${{ steps.register-task-def.outputs.new_task_def_arn }}
+      - name: Create AppSpec for CodeDeploy (YAML)
         run: |
-          # Use TF outputs if present; otherwise defaults
-          CNAME="${{ steps.get-outputs.outputs.container_name }}"
-          CPORT="${{ steps.get-outputs.outputs.container_port }}"
-          if [ -z "$CNAME" ]; then CNAME="url-shortener"; fi
-          if [ -z "$CPORT" ]; then CPORT="8080"; fi
+          cat > appspec.yml <<EOF
+          version: 0.0
+          Resources:
+            - TargetService:
+                Type: AWS::ECS::Service
+                Properties:
+                  TaskDefinition: "${{ steps.register.outputs.new_td }}"
+                  LoadBalancerInfo:
+                    ContainerName: "${{ steps.tfout.outputs.cname }}"
+                    ContainerPort: ${{ steps.tfout.outputs.cport }}
+                  PlatformVersion: "LATEST"
+          EOF
 
-          printf '%s\n' \
-          'version: 0.0' \
-          'Resources:' \
-          '  - TargetService:' \
-          '      Type: AWS::ECS::Service' \
-          '      Properties:' \
-          '        TaskDefinition: "<TASK_DEFINITION>"' \
-          '        LoadBalancerInfo:' \
-          "          ContainerName: \"$CNAME\"" \
-          "          ContainerPort: $CPORT" \
-          '        PlatformVersion: "LATEST"' \
-          > appspec-final.yml
-
-          sed -i "s|<TASK_DEFINITION>|${NEW_TASK_DEF_ARN}|g" appspec-final.yml || true
-
-      - name: Create CodeDeploy deployment (AppSpecContent)
-        id: create-deployment
+      - name: Create CodeDeploy deployment (Blue/Green)
+        id: deploy
         run: |
-          CONTENT=$(python -c 'import json; print(json.dumps(open("appspec-final.yml","r",encoding="utf-8").read()))')
+          CONTENT=$(python -c 'import json; print(json.dumps(open("appspec.yml","r",encoding="utf-8").read()))')
 
           cat > revision.json <<EOF
           {
-            "applicationName": "${{ steps.get-outputs.outputs.cd_app }}",
-            "deploymentGroupName": "${{ steps.get-outputs.outputs.cd_group }}",
+            "applicationName": "${{ steps.tfout.outputs.cd_app }}",
+            "deploymentGroupName": "${{ steps.tfout.outputs.cd_group }}",
             "revision": {
               "revisionType": "AppSpecContent",
               "appSpecContent": { "content": $CONTENT }
             },
-            "description": "Deployment triggered by GitHub Actions - Commit ${{ steps.sha.outputs.sha }}"
+            "description": "Blue/Green deploy - Commit ${{ steps.img.outputs.sha }}"
           }
           EOF
 
-          DEPLOYMENT_ID=$(aws deploy create-deployment \
+          DEPLOY_ID=$(aws deploy create-deployment \
             --cli-input-json file://revision.json \
             --query 'deploymentId' \
             --output text)
 
-          echo "deployment_id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
-          echo "Started deployment: $DEPLOYMENT_ID"
+          echo "id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          echo "Started: $DEPLOY_ID"
 
-      - name: Wait for deployment to complete
+      - name: Wait for deployment
         run: |
-          aws deploy wait deployment-successful \
-            --deployment-id "${{ steps.create-deployment.outputs.deployment_id }}"
+          aws deploy wait deployment-successful --deployment-id "${{ steps.deploy.outputs.id }}"
           echo "Deployment successful."
 
       - name: Summary
         run: |
-          echo "=========================================="
-          echo "CD complete"
-          echo "Image: ${{ steps.verify-image.outputs.image_uri }}"
-          echo "New Task Def: ${{ steps.register-task-def.outputs.new_task_def_arn }}"
-          echo "Deployment ID: ${{ steps.create-deployment.outputs.deployment_id }}"
-          echo "=========================================="
+          echo "Image: ${{ steps.img.outputs.image }}"
+          echo "New TaskDef: ${{ steps.register.outputs.new_td }}"
+          echo "DeploymentId: ${{ steps.deploy.outputs.id }}"
