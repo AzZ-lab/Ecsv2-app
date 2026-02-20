@@ -53,8 +53,53 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
-      - name: Terraform apply (infra only; CodeDeploy owns deployments)
+      # Compute the image URI to inject into Terraform (tag = CI commit SHA)
+      # Preferred: use Terraform output ecr_repository_url if state already exists.
+      # Fallback: use GitHub Variable ECR_REPOSITORY_URL (set this in repo/environment vars).
+      - name: Compute image_uri for this deployment
+        id: img
         working-directory: ${{ env.TF_DIR }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "$SHA" ]; then
+            echo "::error::Missing workflow_run.head_sha"
+            exit 1
+          fi
+
+          ECR_URL=$(terraform output -raw ecr_repository_url 2>/dev/null || true)
+          if [ -z "$ECR_URL" ]; then
+            ECR_URL="${{ vars.ECR_REPOSITORY_URL }}"
+          fi
+
+          if [ -z "$ECR_URL" ]; then
+            echo "::error::ECR repository URL is not available."
+            echo "::error::Fix: either (1) run Terraform once so output ecr_repository_url exists, or (2) set GitHub variable ECR_REPOSITORY_URL."
+            exit 1
+          fi
+
+          IMAGE_URI="${ECR_URL}:${SHA}"
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "Using image_uri=$IMAGE_URI"
+
+      # Terraform inputs from GitHub Variables/Secrets (no tfvars committed)
+      - name: Terraform apply (inputs from GitHub vars/secrets)
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_aws_region: ${{ vars.TF_AWS_REGION }}
+          TF_VAR_container_port: ${{ vars.TF_CONTAINER_PORT }}
+          TF_VAR_project_name: ${{ vars.TF_PROJECT_NAME }}
+          TF_VAR_environment: ${{ vars.TF_ENVIRONMENT }}
+          TF_VAR_domain_name: ${{ vars.TF_DOMAIN_NAME }}
+          TF_VAR_deployment_config_name: ${{ vars.TF_DEPLOYMENT_CONFIG_NAME }}
+          TF_VAR_termination_wait_minutes: ${{ vars.TF_TERMINATION_WAIT_MINUTES }}
+
+          TF_VAR_health_check_path: ${{ vars.TF_HEALTH_CHECK_PATH }}
+
+
+          TF_VAR_TABLE_NAME: ${{ secrets.TF_TABLE_NAME }}
+
+
+
         run: terraform apply -auto-approve -input=false
 
 
@@ -100,9 +145,7 @@ jobs:
           SERVICE=$(terraform output -raw ecs_service_name)
           ECR_URL=$(terraform output -raw ecr_repository_url)
 
-          # Strongly recommended you add these outputs in Terraform:
-          # output "container_name" { value = "app" }
-          # output "container_port" { value = 8080 }
+          # Optional outputs; fallback to sane defaults
           CNAME=$(terraform output -raw container_name 2>/dev/null || echo "app")
           CPORT=$(terraform output -raw container_port 2>/dev/null || echo "8080")
 
@@ -133,7 +176,6 @@ jobs:
           aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$TAG" >/dev/null
 
       - name: Fetch current task definition & replace image (by container name)
-        id: taskdef
         run: |
           CLUSTER="${{ steps.tfout.outputs.cluster }}"
           SERVICE="${{ steps.tfout.outputs.service }}"

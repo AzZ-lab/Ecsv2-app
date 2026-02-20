@@ -1,0 +1,77 @@
+name: Destroy (Terraform)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+concurrency:
+  group: terraform-destroy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  TF_VERSION: 1.14.5
+  TF_DIR: ./Terraform
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Safety check (must type DESTROY)
+        run: |
+          if [ "${{ inputs.confirm }}" != "DESTROY" ]; then
+            echo "::error::Confirmation mismatch. You must type DESTROY to proceed."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
+
+
+      - name: Terraform destroy
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_aws_region: ${{ vars.TF_AWS_REGION }}
+          TF_VAR_container_port: ${{ vars.TF_CONTAINER_PORT }}
+          TF_VAR_project_name: ${{ vars.TF_PROJECT_NAME }}
+          TF_VAR_environment: ${{ vars.TF_ENVIRONMENT }}
+          TF_VAR_domain_name: ${{ vars.TF_DOMAIN_NAME }}
+          TF_VAR_deployment_config_name: ${{ vars.TF_DEPLOYMENT_CONFIG_NAME }}
+          TF_VAR_termination_wait_minutes: ${{ vars.TF_TERMINATION_WAIT_MINUTES }}
+          TF_VAR_TABLE_NAME: ${{ secrets.TF_TABLE_NAME }}
+
+
+          TF_VAR_health_check_path: ${{ vars.TF_HEALTH_CHECK_PATH }}
+
+
+          TF_VAR_image_uri: ${{ vars.TF_IMAGE_URI_FALLBACK }}
+        run: terraform destroy -auto-approve -input=false
+
+      - name: post-check
+        run: |
+          terraform state list || echo "State is empty, likely destroyed successfully"
