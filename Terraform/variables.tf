@@ -23,7 +23,7 @@ variable "environment" {
 
 variable "health_check_path" {
   type    = string
-  default = "/health"
+  default = "/"
 }
 
 variable "domain_name" {

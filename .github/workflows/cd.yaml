@@ -53,8 +53,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
-      # One-time cleanup for AWS provider identity decode mismatch (task definition)
-      # Safe because task definitions are revisioned and can be recreated.
+
       - name: Fix state decode issue (remove old ECS task definition if present)
         working-directory: ${{ env.TF_DIR }}
         run: |
@@ -66,8 +65,7 @@ jobs:
             echo "No ECS task definition in state to remove"
           fi
 
-      # Terraform inputs from GitHub Variables/Secrets (no tfvars committed)
-      # NOTE: image_uri is NOT passed here (Terraform uses placeholder default)
+
       - name: Terraform apply (infra only)
         working-directory: ${{ env.TF_DIR }}
         env:
@@ -79,7 +77,6 @@ jobs:
           TF_VAR_deployment_config_name: ${{ vars.TF_DEPLOYMENT_CONFIG_NAME }}
           TF_VAR_termination_wait_minutes: ${{ vars.TF_TERMINATION_WAIT_MINUTES }}
           TF_VAR_TABLE_NAME: ${{ secrets.TF_TABLE_NAME }}
-          # optional (you have default "/health" in TF)
           TF_VAR_health_check_path: ${{ vars.TF_HEALTH_CHECK_PATH }}
         run: terraform apply -auto-approve -input=false
 
