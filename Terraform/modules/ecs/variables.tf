@@ -78,5 +78,4 @@ variable "container_name" {
 variable "image_uri" {
   type        = string
   description = "Full ECR image URI including tag (e.g. 123...amazonaws.com/repo:tag)"
-  default = "public.ecr.aws/nginx/nginx:stable"
 }

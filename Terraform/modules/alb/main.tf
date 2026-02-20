@@ -88,7 +88,7 @@ resource "aws_lb_target_group" "blue" {
   name        = "${var.project_name}-${var.environment}-blue"
   port        = var.container_port
   protocol    = "HTTP"
-  target_type = "ip" # required for Fargate (targets are ENI IPs)
+  target_type = "ip"
   vpc_id      = var.vpc_id
 
   health_check {
