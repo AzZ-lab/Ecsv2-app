@@ -40,7 +40,7 @@ variable "termination_wait_minutes" {
   description = "Minutes to wait before terminating BLUE tasks after success"
 }
 
-variable "IMAGE_URI" {
+variable "image_uri" {
   type        = string
   description = "Full ECR image URI including tag (e.g. 123...amazonaws.com/repo:tag)"
 }

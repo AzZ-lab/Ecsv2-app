@@ -78,7 +78,7 @@ jobs:
           TF_VAR_termination_wait_minutes: ${{ vars.TF_TERMINATION_WAIT_MINUTES }}
           TF_VAR_TABLE_NAME: ${{ secrets.TF_TABLE_NAME }}
           TF_VAR_health_check_path: ${{ vars.TF_HEALTH_CHECK_PATH }}
-          TF_VAR_IMAGE_URI: ${{ vars.TF_IMAGE_URI }}
+          TF_VAR_image_uri: ${{ vars.TF_IMAGE_URI }}
         run: terraform apply -auto-approve -input=false
 
 

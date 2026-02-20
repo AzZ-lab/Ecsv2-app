@@ -21,7 +21,7 @@ module "ecs" {
 
   aws_region     = var.aws_region
   container_port = var.container_port
-  image_uri      = var.IMAGE_URI
+  image_uri      = var.image_uri
   table_name     = var.TABLE_NAME
 
   execution_role_arn = module.iam.ecs_execution_role_arn
