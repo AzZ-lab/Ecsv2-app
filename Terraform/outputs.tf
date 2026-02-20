@@ -15,7 +15,6 @@ output "ecs_service_name" {
 }
 
 
-
 output "container_name" {
   value = "app"
 }
