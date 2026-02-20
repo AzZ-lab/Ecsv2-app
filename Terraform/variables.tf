@@ -39,9 +39,3 @@ variable "termination_wait_minutes" {
   type        = number
   description = "Minutes to wait before terminating BLUE tasks after success"
 }
-
-
- variable "image_uri" {
-   description = "URI of the container image in ECR (e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:latest)"
-   type        = string
- }

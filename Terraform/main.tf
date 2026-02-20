@@ -20,7 +20,6 @@ module "ecs" {
   environment  = var.environment
 
   aws_region     = var.aws_region
-  image_uri      = var.image_uri
   container_port = var.container_port
   table_name     = var.TABLE_NAME
 

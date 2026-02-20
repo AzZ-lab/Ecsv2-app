@@ -157,16 +157,6 @@ jobs:
           echo "cname=$CNAME" >> $GITHUB_OUTPUT
           echo "cport=$CPORT" >> $GITHUB_OUTPUT
 
-      - name: Compute new image URI (tag = CI commit SHA)
-        id: img
-        run: |
-          SHA="${{ github.event.workflow_run.head_sha }}"
-          if [ -z "$SHA" ]; then
-            echo "::error::Missing workflow_run.head_sha"
-            exit 1
-          fi
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "image=${{ steps.tfout.outputs.ecr_url }}:$SHA" >> $GITHUB_OUTPUT
 
       - name: Verify image exists in ECR
         run: |
