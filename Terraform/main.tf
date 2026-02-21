@@ -86,6 +86,7 @@ module "codedeploy" {
   termination_wait_minutes = var.termination_wait_minutes
 
   alb_listener_arn        = module.alb.https_listener_arn
+  test_listener_arn       = module.alb.test_listener_arn
   target_group_blue_name  = module.alb.target_group_blue_name
   target_group_green_name = module.alb.target_group_green_name
 }

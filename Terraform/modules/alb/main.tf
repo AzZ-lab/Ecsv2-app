@@ -12,6 +12,14 @@ resource "aws_security_group" "alb" {
     cidr_blocks = var.alb_ingress_cidrs
   }
 
+  ingress {
+  description = "CodeDeploy test listener"
+  from_port   = 8080
+  to_port     = 8080
+  protocol    = "tcp"
+  cidr_blocks = var.alb_ingress_cidrs
+  }
+
 
   dynamic "ingress" {
     for_each = var.enable_https ? [1] : []
@@ -158,5 +166,16 @@ resource "aws_lb_listener" "https" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.blue.arn
+  }
+}
+
+resource "aws_lb_listener" "test" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 8080
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.green.arn
   }
 }

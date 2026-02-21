@@ -45,3 +45,8 @@ variable "termination_wait_minutes" {
   type        = number
   description = "Minutes to wait before terminating BLUE tasks after success"
 }
+
+variable "test_listener_arn" {
+  type        = string
+  description = "ARN of the test ALB listener"
+}
