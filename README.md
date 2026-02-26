@@ -158,16 +158,3 @@ workflow: destroy.yml
 ```
 
 ---
-
-## Demo
-
-> 📹 [Watch the demo video](#)
-
-The demo walks through the full end-to-end flow:
-
-1. Submit a long URL to the `/shorten` endpoint
-2. Receive and inspect the shortened URL
-3. Hit the short URL and confirm redirect to original
-4. Verify the round-trip: ALB → ECS Fargate → DynamoDB → redirect response
-
-All infrastructure components — load balancer, task routing, and database reads — are exercised in a single request cycle.
