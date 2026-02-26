@@ -6,9 +6,6 @@ resource "aws_route53_zone" "this" {
     Environment = var.environment
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_acm_certificate" "this" {
