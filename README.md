@@ -1,4 +1,4 @@
-# 🔗 URL Shortener — AWS ECS Fargate
+# 🔗 URL Shortener  AWS ECS Fargate
 
 > Production-ready URL shortener running on AWS ECS Fargate. Features zero-downtime blue/green deployments, WAF protection, and fully automated CI/CD, no static credentials, no NAT gateways, no server management.
 
@@ -16,7 +16,6 @@
 - [Blue/Green Deployments](#bluegreen-deployments)
 - [CI/CD Pipeline](#cicd-pipeline)
 
-
 ---
 
 ## Quick Start
@@ -26,12 +25,8 @@
 git clone https://github.com/your-org/ecs-v2-project.git
 cd ecs-v2-project
 
-# Bootstrap global infrastructure (run once)
-cd infra/global/backend && terraform apply
-cd ../bootstrap && terraform apply
-
 # Deploy the dev environment
-cd infra/envs/dev && terraform apply
+cd Terraform/env/dev && terraform init && terraform apply
 ```
 
 > CI/CD kicks in automatically on push via GitHub Actions — manual deploys are only needed for the initial bootstrap.
@@ -56,30 +51,40 @@ cd infra/envs/dev && terraform apply
 
 ```
 ECS-V2-Project/
+├── .github/                  # GitHub Actions workflows
 ├── app/
-│   ├── src/                  # FastAPI application source
+│   ├── src/
+│   │   ├── __init__.py
+│   │   ├── ddb.py            # DynamoDB interactions
+│   │   └── main.py           # FastAPI entrypoint
 │   ├── tests/                # Unit tests
+│   ├── .gitignore
 │   ├── Dockerfile            # Container definition
 │   └── requirements.txt      # Python dependencies
 │
-├── infra/
-│   ├── global/
-│   │   ├── backend/          # Terraform state backend (run once)
-│   │   └── bootstrap/        # GitHub OIDC provider & deploy role (run once)
-│   ├── modules/
-│   │   ├── vpc/              # VPC, subnets, VPC endpoints
-│   │   ├── dynamodb/         # URL mappings table
-│   │   ├── iam/              # IAM roles & policies
-│   │   ├── ecr/              # Container registry
-│   │   ├── alb/              # Load balancer + WAF rules
-│   │   ├── ecs/              # Cluster, service, task definitions
-│   │   └── codedeploy/       # Deployment app & group
-│   └── envs/dev/             # Dev environment entrypoint
+├── images/                   # README screenshots & diagrams
 │
-└── .github/workflows/
-    ├── ci.yml                # Build → test → scan → push to ECR
-    ├── cd.yml                # Terraform apply → CodeDeploy trigger
-    └── destroy.yml           # Manual teardown workflow
+├── Terraform/
+│   ├── .terraform/           # Terraform lock & cache (not committed)
+│   ├── env/
+│   │   └── dev/              # Dev environment entrypoint
+│   │       ├── main.tf
+│   │       ├── outputs.tf
+│   │       ├── provider.tf
+│   │       ├── terraform.tfvars
+│   │       └── variables.tf
+│   ├── modules/
+│   │   ├── alb/              # Load balancer + WAF rules
+│   │   ├── codedeploy/       # Deployment app & group
+│   │   ├── ecs/              # Cluster, service, task definitions
+│   │   ├── iam/              # IAM roles & policies
+│   │   ├── route53/          # DNS records
+│   │   ├── vpc/              # VPC, subnets, VPC endpoints
+│   │   └── waf/              # WAF rules
+│   ├── .gitignore
+│   └── .terraform.lock.hcl
+│
+└── README.md
 ```
 
 ---
@@ -87,6 +92,8 @@ ECS-V2-Project/
 ## How It Works
 
 ### Traffic Flow
+
+![ECS Architecture](images/ecs%20architecture.png)
 
 ```
 Internet
@@ -99,7 +106,9 @@ Internet
 
 ### Networking
 
-ECS tasks live in **private subnets** with no public IPs. Instead of NAT gateways, the architecture uses **VPC endpoints** to reach AWS services — saving roughly $64/month while keeping traffic off the public internet.
+ECS tasks live in **private subnets** with no public IPs. Instead of NAT gateways, the architecture uses **VPC endpoints** to reach AWS services saving roughly $64/month while keeping traffic off the public internet.
+
+![VPC Endpoints](images/VPC-ENDPOINTS.png)
 
 Services accessed via VPC endpoints: DynamoDB · ECR · CloudWatch Logs · S3
 
@@ -109,11 +118,19 @@ Services accessed via VPC endpoints: DynamoDB · ECR · CloudWatch Logs · S3
 - **PITR (Point-in-Time Recovery)** is enabled for data safety
 - **CloudWatch Logs** captures all application output centrally
 
+### SSL / TLS
+
+![ACM Certificate](images/ACM-CERT.png)
+
+HTTPS is handled via an ACM certificate attached to the ALB — traffic is encrypted end-to-end.
+
 ---
 
 ## Blue/Green Deployments
 
 Zero-downtime deployments are managed by AWS CodeDeploy. Here's what happens on every deploy:
+
+![Blue/Green Deployment](images/ecsv2-blue-green.png)
 
 ```
 1. New task revision registers to the GREEN target group
@@ -138,6 +155,10 @@ Zero-downtime deployments are managed by AWS CodeDeploy. Here's what happens on 
 
 Authentication uses **GitHub Actions OIDC** — no AWS access keys stored in GitHub secrets.
 
+### CI — Build, Test & Push
+
+![CI Pipeline](images/CI-pipeline%20running%20clean.png)
+
 ```
 Push to main
   └─► ci.yml
@@ -145,10 +166,22 @@ Push to main
         ├── Build Docker image
         ├── Scan image for vulnerabilities
         └── Push to ECR
-              └─► cd.yml
-                    ├── terraform apply (infra changes)
-                    └── Trigger CodeDeploy blue/green deployment
 ```
+
+### CD — Deploy
+
+![CD Pipeline](images/cd-pipeline.png)
+
+```
+ECR image pushed
+  └─► cd.yml
+        ├── terraform apply (infra changes)
+        └── Trigger CodeDeploy blue/green deployment
+```
+
+### App Running
+
+![App Running](images/app-running.png)
 
 To tear down all infrastructure:
 
