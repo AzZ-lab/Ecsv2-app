@@ -1,6 +1,6 @@
 # 🔗 URL Shortener — AWS ECS Fargate
 
-> Production-ready URL shortener running on AWS ECS Fargate. Features zero-downtime blue/green deployments, WAF protection, and fully automated CI/CD — no static credentials, no NAT gateways, no server management.
+> Production-ready URL shortener running on AWS ECS Fargate. Features zero-downtime blue/green deployments, WAF protection, and fully automated CI/CD, no static credentials, no NAT gateways, no server management.
 
 ---
 
