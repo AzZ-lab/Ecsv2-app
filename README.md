@@ -15,7 +15,7 @@
   - [Data Layer](#data-layer)
 - [Blue/Green Deployments](#bluegreen-deployments)
 - [CI/CD Pipeline](#cicd-pipeline)
-- [Demo](#demo)
+
 
 ---
 
